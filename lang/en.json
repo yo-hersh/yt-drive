@@ -32,5 +32,6 @@
   "drive_network": "No connection to Google Drive.",
   "drive_stalled": "The upload got stuck.",
   "drive_http_403": "Google Drive refused (403). The Drive may be full, or the Apps Script is missing a permission.",
-  "drive_other": "Google Drive error: {code}."
+  "drive_other": "Google Drive error: {code}.",
+  "drive_token_request": "Could not reach the Apps Script address. Check that DRIVE_URL is the full Web app URL, starting with https://script.google.com/macros/s/ and ending with /exec."
 }

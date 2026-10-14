@@ -32,5 +32,6 @@
   "drive_network": "אין תקשורת עם Google Drive.",
   "drive_stalled": "ההעלאה נתקעה.",
   "drive_http_403": "Google Drive סירב (403). ייתכן שהדרייב מלא, או שחסרה הרשאה ל-Apps Script.",
-  "drive_other": "שגיאת Google Drive: {code}."
+  "drive_other": "שגיאת Google Drive: {code}.",
+  "drive_token_request": "לא הצלחתי לפנות לכתובת של ה-Apps Script. לבדוק שהערך של DRIVE_URL הוא כתובת ה-Web app המלאה, שמתחילה ב-https://script.google.com/macros/s/ ומסתיימת ב-/exec."
 }

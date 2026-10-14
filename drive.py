@@ -34,7 +34,10 @@ class Drive:
 
     def _refresh(self):
         # Apps Script answers with a redirect; requests follows it and gets the JSON.
-        r = requests.post(DRIVE_URL, json={"key": DRIVE_KEY}, timeout=60)
+        try:
+            r = requests.post(DRIVE_URL, json={"key": DRIVE_KEY}, timeout=60)
+        except requests.RequestException as e:
+            raise DriveError("token_request", type(e).__name__)
         try:
             data = r.json()
         except ValueError:  # an HTML page: not deployed, or access isn't "Anyone"
@@ -50,19 +53,20 @@ class Drive:
 
     def _call(self, method, url, headers=None, **kw):
         """Request with a fresh token on 401 and backoff on 429 / 5xx / network errors."""
-        r = None
+        r = error = None
         for attempt in range(RETRIES):
+            auth = self._headers(headers)  # DriveError here (no token) is not worth retrying
             try:
-                r = self.session.request(method, url, headers=self._headers(headers), timeout=300, **kw)
-            except requests.RequestException:
-                r = None
+                r = self.session.request(method, url, headers=auth, timeout=300, **kw)
+            except requests.RequestException as e:
+                r, error = None, type(e).__name__
             if r is not None and r.status_code not in (401, 429, 500, 502, 503, 504):
                 return r
             if r is not None and r.status_code == 401:
                 self._token = None
             time.sleep(min(2 ** attempt, 30))
         if r is None:
-            raise DriveError("network")
+            raise DriveError("network", error)
         return r
 
     # ---------- folders ----------

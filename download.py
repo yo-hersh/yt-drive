@@ -144,7 +144,8 @@ def post_process(path):
 
 def _drive_error(e):
     code = e.args[0]
-    return t(f"drive_{code}") if has(f"drive_{code}") else t("drive_other", code=code)
+    text = t(f"drive_{code}") if has(f"drive_{code}") else t("drive_other", code=code)
+    return f"{text} ({e.args[1]})" if len(e.args) > 1 else text
 
 
 # ---------- main run ----------
