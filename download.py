@@ -4,7 +4,9 @@ Downloads from YouTube with yt-dlp and moves every finished file straight to Goo
 Run by .github/workflows/download.yml; settings come from environment variables:
   YT_URL, YT_MODE (video / mp3 / subs), YT_QUALITY (1080 / 720 / 480 / 360 / max / small),
   YT_ITEMS (e.g. "3-7"), YT_WHOLE_PLAYLIST, YT_EMBED_SUBS ("true" / "false"),
-  DRIVE_FOLDER, YT_COOKIES_FILE, YT_LANG; DRIVE_URL + DRIVE_KEY for Drive (see drive.py).
+  DRIVE_FOLDER, YT_COOKIES_FILE, YT_LANG.
+Upload: DRIVE_UPLOADER = "apps_script" (DRIVE_URL + DRIVE_KEY, see drive.py)
+        or "rclone" (an rclone remote named "gdrive", made with your own Google client_id).
 
 `python download.py --post FILE` is the per-file step yt-dlp calls (--exec): fix the audio
 to AAC, then upload and delete the local copy, so the runner's disk never fills up.
@@ -21,6 +23,8 @@ from i18n import has, t
 
 BASE_DIR = Path(os.environ.get("RUNNER_TEMP") or Path.cwd()) / "downloads"
 FOLDER = (os.environ.get("DRIVE_FOLDER") or "YouTube").strip("/")
+UPLOADER = os.environ.get("DRIVE_UPLOADER") or "apps_script"
+RCLONE_REMOTE = "gdrive"
 SUMMARY = os.environ.get("GITHUB_STEP_SUMMARY")
 YTDLP = [sys.executable, "-m", "yt_dlp"]
 
@@ -126,21 +130,38 @@ def post_process(path):
     if path.suffix.lower() in VIDEO_EXTS:
         path = _fix_audio(path)
     rel = path.relative_to(BASE_DIR)
-    size = path.stat().st_size
+    print(t("uploading", name=path.name, size=_size(path.stat().st_size)), flush=True)
+    upload = _upload_rclone if UPLOADER == "rclone" else _upload_apps_script
+    if not upload(path, rel):
+        return False
+    path.unlink(missing_ok=True)
+    print(t("uploaded", path=f"{FOLDER}/{rel.as_posix()}"), flush=True)
+    _summary(f"- {rel.as_posix()}")
+    return True
+
+
+def _upload_apps_script(path, rel):
     try:
         drive = Drive()
         parent = drive.folder("/".join([FOLDER, *rel.parent.parts]))
-        if drive.exists(path.name, parent, size):
+        if drive.exists(path.name, parent, path.stat().st_size):
             print(t("upload_exists", name=path.name), flush=True)
         else:
-            print(t("uploading", name=path.name, size=_size(size)), flush=True)
             drive.upload(path, parent, lambda pct: print(t("upload_progress", pct=pct), flush=True))
-            print(t("uploaded", path=f"{FOLDER}/{rel.as_posix()}"), flush=True)
     except DriveError as e:
         print(t("upload_failed", name=path.name, error=_drive_error(e)), flush=True)
         return False
-    path.unlink()
-    _summary(f"- {rel.as_posix()}")
+    return True
+
+
+def _upload_rclone(path, rel):
+    # --size-only: a file already in Drive with the same size is skipped (the local copy is still removed).
+    result = subprocess.run(
+        ["rclone", "moveto", str(path), f"{RCLONE_REMOTE}:{FOLDER}/{rel.as_posix()}", "--size-only",
+         "--drive-chunk-size", "64M", "--stats", "30s", "--stats-one-line", "--stats-log-level", "NOTICE"])
+    if result.returncode != 0:
+        print(t("upload_failed", name=path.name, error=t("rclone_failed", code=result.returncode)), flush=True)
+        return False
     return True
 
 
@@ -238,14 +259,22 @@ def main():
     if not (os.environ.get("YT_URL") or "").strip():
         print(t("no_url"))
         return 1
-    if not configured():
-        print(t("no_drive"))
-        return 1
-    try:
-        Drive().folder(FOLDER)  # fails fast on a bad key / missing permission, before downloading
-    except DriveError as e:
-        print(_drive_error(e))
-        return 1
+    # Fail fast on a missing / broken Drive connection, before downloading anything.
+    if UPLOADER == "rclone":
+        remotes = subprocess.run(["rclone", "listremotes"], capture_output=True, text=True).stdout.split()
+        if f"{RCLONE_REMOTE}:" not in remotes:
+            print(t("no_drive_rclone"))
+            return 1
+    else:
+        if not configured():
+            print(t("no_drive"))
+            return 1
+        try:
+            Drive().folder(FOLDER)
+        except DriveError as e:
+            print(_drive_error(e))
+            return 1
+    print(t("uploader", name=UPLOADER))
 
     version = subprocess.run(YTDLP + ["--version"], capture_output=True, text=True).stdout.strip()
     print(t("ytdlp_version", version=version))

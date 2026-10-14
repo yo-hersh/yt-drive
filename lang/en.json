@@ -34,5 +34,8 @@
   "drive_http_403": "Google Drive refused (403). The Drive may be full, or the Apps Script is missing a permission.",
   "drive_other": "Google Drive error: {code}.",
   "drive_token_request": "Could not reach the Apps Script address. Check that DRIVE_URL is the full Web app URL, starting with https://script.google.com/macros/s/ and ending with /exec.",
-  "hint_cookies_rotated": "💡 YouTube rejected the cookies (they were rotated in the browser). Export new ones in a private window: sign in to YouTube, go to youtube.com/robots.txt in the same tab, export, close the window right away, and save YT_COOKIES again."
+  "hint_cookies_rotated": "💡 YouTube rejected the cookies (they were rotated in the browser). Export new ones in a private window: sign in to YouTube, go to youtube.com/robots.txt in the same tab, export, close the window right away, and save YT_COOKIES again.",
+  "no_drive_rclone": "❌ Upload through rclone is not set up: the repository secret RCLONE_CONF (with a remote named gdrive) is missing.",
+  "rclone_failed": "rclone failed (code {code}). If a token error appears, reconnect and save RCLONE_CONF again.",
+  "uploader": "🔌 Uploading to Drive through: {name}"
 }
