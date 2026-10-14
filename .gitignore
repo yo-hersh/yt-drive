@@ -1,0 +1,4 @@
+downloads/
+*cookies*.txt
+rclone.conf
+__pycache__/

@@ -1,0 +1,81 @@
+name: Download to Drive
+run-name: "${{ inputs.mode }} · ${{ inputs.url }}"
+
+on:
+  workflow_dispatch:
+    inputs:
+      url:
+        description: "קישור / Link"
+        required: true
+        type: string
+      mode:
+        description: "סוג / Type"
+        type: choice
+        options: [video, mp3, subs]
+        default: video
+      quality:
+        description: "איכות / Quality"
+        type: choice
+        options: ["1080", "720", "480", "360", "max", "small"]
+        default: "1080"
+      items:
+        description: "פריטים מהפלייליסט, למשל 3-7 או 1,4 / Playlist items, e.g. 3-7 or 1,4"
+        type: string
+        default: ""
+      whole_playlist:
+        description: "כל הפלייליסט / Whole playlist"
+        type: boolean
+        default: false
+      embed_subs:
+        description: "להטמיע כתוביות עברית / Embed Hebrew subtitles"
+        type: boolean
+        default: false
+      folder:
+        description: "תיקייה בדרייב / Drive folder"
+        type: string
+        default: YouTube
+      lang:
+        description: "שפת ההודעות / Message language"
+        type: choice
+        options: [he, en]
+        default: he
+
+jobs:
+  download:
+    runs-on: ubuntu-latest
+    timeout-minutes: 340
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install yt-dlp, ffmpeg, rclone
+        run: |
+          python -m pip install -q -U --progress-bar off "yt-dlp[default,deno]"
+          command -v ffmpeg >/dev/null || { sudo apt-get update -q && sudo apt-get install -y -q ffmpeg; }
+          curl -fsSL https://rclone.org/install.sh | sudo bash >/dev/null
+          rclone version | head -1
+
+      - name: Credentials
+        env:
+          RCLONE_CONF: ${{ secrets.RCLONE_CONF }}
+          YT_COOKIES: ${{ secrets.YT_COOKIES }}
+        run: |
+          mkdir -p ~/.config/rclone
+          printf '%s\n' "$RCLONE_CONF" > ~/.config/rclone/rclone.conf
+          if [ -n "$YT_COOKIES" ]; then printf '%s\n' "$YT_COOKIES" > "$RUNNER_TEMP/cookies.txt"; fi
+
+      - name: Download and upload
+        env:
+          YT_URL: ${{ inputs.url }}
+          YT_MODE: ${{ inputs.mode }}
+          YT_QUALITY: ${{ inputs.quality }}
+          YT_ITEMS: ${{ inputs.items }}
+          YT_WHOLE_PLAYLIST: ${{ inputs.whole_playlist }}
+          YT_EMBED_SUBS: ${{ inputs.embed_subs }}
+          DRIVE_FOLDER: ${{ inputs.folder }}
+          YT_LANG: ${{ inputs.lang }}
+          YT_COOKIES_FILE: ${{ runner.temp }}/cookies.txt
+        run: python download.py
