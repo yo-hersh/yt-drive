@@ -28,8 +28,9 @@ YTDLP = [sys.executable, "-m", "yt_dlp"]
 VIDEO_FORMAT = "bv*+ba[acodec^=mp4a]/bv*+ba/b"
 QUALITY_SORT = {"max": "res,fps,vcodec:h264", "small": "+res,+size"}
 SUB_LANGS = "iw,iw-en,he"
-# Playlist items go into a sub-folder named after the playlist, numbered "N - title".
-OUT_TEMPLATE = "%(playlist_title&{}/|)s%(playlist_index&{} - |)s%(title)s.%(ext)s"
+# Playlist items go into a sub-folder named after the playlist, numbered "N - title"; single videos
+# get "." instead. The "/" must stay outside the field, or --windows-filenames turns it into "⧸".
+OUT_TEMPLATE = "%(playlist_title|.)s/%(playlist_index&{} - |)s%(title)s.%(ext)s"
 # The rest are tried automatically only if YouTube answers "Sign in to confirm you're not a bot".
 PLAYER_CLIENTS = ["default", "android", "tv_simply", "web_safari", "mweb"]
 # With signed-in cookies yt-dlp ignores clients that don't support cookies (android, tv_simply...).
