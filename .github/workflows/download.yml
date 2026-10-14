@@ -51,20 +51,15 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Install yt-dlp, ffmpeg, rclone
+      - name: Install yt-dlp, ffmpeg
         run: |
-          python -m pip install -q -U --progress-bar off "yt-dlp[default,deno]"
+          python -m pip install -q -U --progress-bar off "yt-dlp[default,deno]" requests
           command -v ffmpeg >/dev/null || { sudo apt-get update -q && sudo apt-get install -y -q ffmpeg; }
-          curl -fsSL https://rclone.org/install.sh | sudo bash >/dev/null
-          rclone version | head -1
 
-      - name: Credentials
+      - name: Cookies
         env:
-          RCLONE_CONF: ${{ secrets.RCLONE_CONF }}
           YT_COOKIES: ${{ secrets.YT_COOKIES }}
         run: |
-          mkdir -p ~/.config/rclone
-          printf '%s\n' "$RCLONE_CONF" > ~/.config/rclone/rclone.conf
           if [ -n "$YT_COOKIES" ]; then printf '%s\n' "$YT_COOKIES" > "$RUNNER_TEMP/cookies.txt"; fi
 
       - name: Download and upload
@@ -78,4 +73,6 @@ jobs:
           DRIVE_FOLDER: ${{ inputs.folder }}
           YT_LANG: ${{ inputs.lang }}
           YT_COOKIES_FILE: ${{ runner.temp }}/cookies.txt
+          DRIVE_URL: ${{ secrets.DRIVE_URL }}
+          DRIVE_KEY: ${{ secrets.DRIVE_KEY }}
         run: python download.py

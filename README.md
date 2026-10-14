@@ -15,8 +15,12 @@
 ## Secrets (Settings ← Secrets and variables ← Actions)
 | שם | תוכן |
 |---|---|
-| `RCLONE_CONF` | קובץ ההגדרות של rclone עם חיבור בשם `gdrive` (הרשאת `drive.file`) |
-| `YT_COOKIES` | אופציונלי: תוכן cookies.txt מחשבון מחובר, אם YouTube חוסם ("Sign in to confirm you're not a bot") |
+| `DRIVE_URL` | כתובת ה-Web app של ה-Apps Script שב-`apps-script/` |
+| `DRIVE_KEY` | המפתח שמופיע ב-`KEY` בתוך ה-Apps Script |
+| `YT_COOKIES` | תוכן cookies.txt מחשבון מחובר, אם YouTube חוסם ("Sign in to confirm you're not a bot") |
+
+## איך ההעלאה לדרייב עובדת
+ה-Apps Script רץ בחשבון Google שלך ומחזיר אישור גישה זמני לשעה, בהרשאת `drive.file`. בהרשאה הזו הוא רואה רק קבצים שהוא עצמו יצר. ה-workflow מבקש אישור כזה עם `DRIVE_KEY` ומעלה את הקבצים ישירות ל-Drive API. לא צריך פרויקט ב-Google Cloud.
 
 ## שפה
 ההודעות נמצאות ב-`lang/*.json`. לשפה חדשה מוסיפים קובץ ואת הקוד שלו לרשימה `lang` ב-`.github/workflows/download.yml`.

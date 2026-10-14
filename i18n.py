@@ -21,3 +21,7 @@ _MSG = {**_load(DEFAULT_LANG), **_load(LANG)}
 
 def t(key, **kw):
     return _MSG.get(key, key).format(**kw)
+
+
+def has(key):
+    return key in _MSG

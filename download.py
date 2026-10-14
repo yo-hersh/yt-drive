@@ -1,10 +1,10 @@
 """
-Downloads from YouTube with yt-dlp and moves every finished file straight to Google Drive (rclone).
+Downloads from YouTube with yt-dlp and moves every finished file straight to Google Drive.
 
 Run by .github/workflows/download.yml; settings come from environment variables:
   YT_URL, YT_MODE (video / mp3 / subs), YT_QUALITY (1080 / 720 / 480 / 360 / max / small),
   YT_ITEMS (e.g. "3-7"), YT_WHOLE_PLAYLIST, YT_EMBED_SUBS ("true" / "false"),
-  DRIVE_FOLDER, DRIVE_REMOTE, YT_COOKIES_FILE, YT_LANG.
+  DRIVE_FOLDER, YT_COOKIES_FILE, YT_LANG; DRIVE_URL + DRIVE_KEY for Drive (see drive.py).
 
 `python download.py --post FILE` is the per-file step yt-dlp calls (--exec): fix the audio
 to AAC, then upload and delete the local copy, so the runner's disk never fills up.
@@ -16,10 +16,10 @@ import subprocess
 import sys
 from pathlib import Path
 
-from i18n import t
+from drive import Drive, DriveError, configured
+from i18n import has, t
 
 BASE_DIR = Path(os.environ.get("RUNNER_TEMP") or Path.cwd()) / "downloads"
-REMOTE = os.environ.get("DRIVE_REMOTE") or "gdrive"
 FOLDER = (os.environ.get("DRIVE_FOLDER") or "YouTube").strip("/")
 SUMMARY = os.environ.get("GITHUB_STEP_SUMMARY")
 YTDLP = [sys.executable, "-m", "yt_dlp"]
@@ -123,18 +123,28 @@ def post_process(path):
         return True
     if path.suffix.lower() in VIDEO_EXTS:
         path = _fix_audio(path)
-    rel = path.relative_to(BASE_DIR).as_posix()
-    print(t("uploading", name=path.name, size=_size(path.stat().st_size)), flush=True)
-    result = subprocess.run(
-        ["rclone", "moveto", str(path), f"{REMOTE}:{FOLDER}/{rel}",
-         "--drive-chunk-size", "64M", "--stats", "30s", "--stats-one-line",
-         "--stats-log-level", "NOTICE"])
-    if result.returncode != 0:
-        print(t("upload_failed", name=path.name), flush=True)
+    rel = path.relative_to(BASE_DIR)
+    size = path.stat().st_size
+    try:
+        drive = Drive()
+        parent = drive.folder("/".join([FOLDER, *rel.parent.parts]))
+        if drive.exists(path.name, parent, size):
+            print(t("upload_exists", name=path.name), flush=True)
+        else:
+            print(t("uploading", name=path.name, size=_size(size)), flush=True)
+            drive.upload(path, parent, lambda pct: print(t("upload_progress", pct=pct), flush=True))
+            print(t("uploaded", path=f"{FOLDER}/{rel.as_posix()}"), flush=True)
+    except DriveError as e:
+        print(t("upload_failed", name=path.name, error=_drive_error(e)), flush=True)
         return False
-    print(t("uploaded", path=f"{FOLDER}/{rel}"), flush=True)
-    _summary(f"- {rel}")
+    path.unlink()
+    _summary(f"- {rel.as_posix()}")
     return True
+
+
+def _drive_error(e):
+    code = e.args[0]
+    return t(f"drive_{code}") if has(f"drive_{code}") else t("drive_other", code=code)
 
 
 # ---------- main run ----------
@@ -177,7 +187,7 @@ def _build_args():
         print(t("start_subs", url=url))
     else:
         print(t("start_video", quality=quality, url=url))
-    print(t("target", target=f"{REMOTE}:{FOLDER}"))
+    print(t("target", target=FOLDER))
 
     args = ["--ignore-errors", "--windows-filenames", "--newline", "--progress-delta", "5",
             "-P", str(BASE_DIR), "-o", OUT_TEMPLATE, "--embed-metadata"]
@@ -186,6 +196,9 @@ def _build_args():
         args += ["--yes-playlist", "--playlist-items", items]
     elif not _env_bool("YT_WHOLE_PLAYLIST"):
         args += ["--no-playlist"]  # a link with both v= and list= downloads only that video
+    if items or _env_bool("YT_WHOLE_PLAYLIST"):
+        # A pause between videos, as yt-dlp advises with signed-in cookies, so the account isn't flagged.
+        args += ["--sleep-interval", "4", "--max-sleep-interval", "10"]
 
     signed_in = False
     cookies = _cookies()
@@ -222,9 +235,13 @@ def main():
     if not (os.environ.get("YT_URL") or "").strip():
         print(t("no_url"))
         return 1
-    remotes = subprocess.run(["rclone", "listremotes"], capture_output=True, text=True).stdout
-    if f"{REMOTE}:" not in remotes.split():
+    if not configured():
         print(t("no_drive"))
+        return 1
+    try:
+        Drive().folder(FOLDER)  # fails fast on a bad key / missing permission, before downloading
+    except DriveError as e:
+        print(_drive_error(e))
         return 1
 
     version = subprocess.run(YTDLP + ["--version"], capture_output=True, text=True).stdout.strip()

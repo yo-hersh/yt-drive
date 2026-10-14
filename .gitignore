@@ -2,3 +2,5 @@ downloads/
 *cookies*.txt
 rclone.conf
 __pycache__/
+apps-script/*.local.gs
+drive-key.txt
