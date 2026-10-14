@@ -270,7 +270,8 @@ def _build_args():
         _deadline = time.monotonic() + stop * 60
         print(t("time_limit", minutes=stop))
         # ffmpeg (instead of yt-dlp's own HLS/DASH downloader) can close a live recording cleanly.
-        args += ["--downloader", "m3u8:ffmpeg", "--downloader", "dash:ffmpeg"]
+        args += ["--downloader", "m3u8:ffmpeg", "--downloader", "dash:ffmpeg",
+                 "--downloader-args", "ffmpeg:-hide_banner -loglevel error -stats"]
     if items or _env_bool("YT_WHOLE_PLAYLIST"):
         # A pause between videos, as yt-dlp advises with signed-in cookies, so the account isn't flagged.
         args += ["--sleep-interval", "4", "--max-sleep-interval", "10"]

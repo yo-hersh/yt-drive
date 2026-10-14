@@ -47,6 +47,17 @@ class Drive:
     # ---------- auth ----------
 
     def _refresh(self):
+        # Apps Script sometimes answers with a passing error page, so a few tries before giving up.
+        for attempt in range(4):
+            try:
+                self._token, self._token_time = self._fetch_token(), time.time()
+                return
+            except DriveError as e:
+                if e.args[0] == "bad_key" or attempt == 3:
+                    raise
+            time.sleep(3 * (attempt + 1))
+
+    def _fetch_token(self):
         # Apps Script answers with a redirect; requests follows it and gets the JSON.
         try:
             r = requests.post(DRIVE_URL, json={"key": DRIVE_KEY}, timeout=60)
@@ -55,11 +66,11 @@ class Drive:
             raise DriveError("token_request", f"{type(e).__name__}, {DRIVE_URL[:6]}..., {len(DRIVE_URL)}")
         try:
             data = r.json()
-        except ValueError:  # an HTML page: not deployed, or access isn't "Anyone"
-            raise DriveError("no_token")
+        except ValueError:  # an HTML page: not deployed, access isn't "Anyone", or a passing error
+            raise DriveError("no_token", f"HTTP {r.status_code}")
         if "token" not in data:
             raise DriveError(data.get("error", "no_token"))
-        self._token, self._token_time = data["token"], time.time()
+        return data["token"]
 
     def _headers(self, extra=None):
         if not self._token or time.time() - self._token_time > 45 * 60:  # tokens live 1 hour
