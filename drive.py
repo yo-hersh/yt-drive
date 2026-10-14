@@ -7,8 +7,10 @@ import time
 
 import requests
 
-DRIVE_URL = os.environ.get("DRIVE_URL", "").strip()
-DRIVE_KEY = os.environ.get("DRIVE_KEY", "").strip()
+# Pasted secrets may carry quotes, a BOM or line breaks.
+_JUNK = " \r\n\t\"'﻿"
+DRIVE_URL = os.environ.get("DRIVE_URL", "").strip(_JUNK)
+DRIVE_KEY = os.environ.get("DRIVE_KEY", "").strip(_JUNK)
 FILES_API = "https://www.googleapis.com/drive/v3/files"
 UPLOAD_API = "https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable&fields=id"
 FOLDER_MIME = "application/vnd.google-apps.folder"
