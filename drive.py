@@ -11,6 +11,9 @@ import requests
 _JUNK = " \r\n\t\"'﻿"
 DRIVE_URL = os.environ.get("DRIVE_URL", "").strip(_JUNK)
 DRIVE_KEY = os.environ.get("DRIVE_KEY", "").strip(_JUNK)
+# A Deployment ID (AKfy...) pasted instead of the Web app URL.
+if DRIVE_URL and "/" not in DRIVE_URL:
+    DRIVE_URL = f"https://script.google.com/macros/s/{DRIVE_URL}/exec"
 FILES_API = "https://www.googleapis.com/drive/v3/files"
 UPLOAD_API = "https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable&fields=id"
 FOLDER_MIME = "application/vnd.google-apps.folder"
@@ -39,7 +42,8 @@ class Drive:
         try:
             r = requests.post(DRIVE_URL, json={"key": DRIVE_KEY}, timeout=60)
         except requests.RequestException as e:
-            raise DriveError("token_request", type(e).__name__)
+            # The first characters and the length help spot a wrong paste without exposing it.
+            raise DriveError("token_request", f"{type(e).__name__}, {DRIVE_URL[:6]}..., {len(DRIVE_URL)}")
         try:
             data = r.json()
         except ValueError:  # an HTML page: not deployed, or access isn't "Anyone"
