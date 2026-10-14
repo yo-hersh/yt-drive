@@ -36,6 +36,7 @@ PLAYER_CLIENTS = ["default", "android", "tv_simply", "web_safari", "mweb"]
 PLAYER_CLIENTS_SIGNED_IN = ["default", "web_safari", "mweb", "tv"]
 BOT_ERROR = "Sign in to confirm"
 ERROR_HINTS = [
+    ("cookies are no longer valid", "hint_cookies_rotated"),
     (BOT_ERROR, "hint_bot"),
     ("Requested format is not available", "hint_update"),
     ("HTTP Error 403", "hint_update"),
