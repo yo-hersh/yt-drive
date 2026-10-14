@@ -4,6 +4,7 @@ Downloads from YouTube with yt-dlp and moves every finished file straight to Goo
 Run by .github/workflows/download.yml; settings come from environment variables:
   YT_URL, YT_MODE (video / mp3 / subs), YT_QUALITY (1080 / 720 / 480 / 360 / max / small),
   YT_ITEMS (e.g. "3-7"), YT_WHOLE_PLAYLIST, YT_EMBED_SUBS ("true" / "false"),
+  YT_STOP_MINUTES (stop after N minutes and upload what was recorded; for live streams),
   DRIVE_FOLDER, YT_COOKIES_FILE, YT_LANG.
 Upload: DRIVE_UPLOADER = "apps_script" (DRIVE_URL + DRIVE_KEY, see drive.py)
         or "rclone" (an rclone remote named "gdrive", made with your own Google client_id).
@@ -14,8 +15,11 @@ to AAC, then upload and delete the local copy, so the runner's disk never fills 
 import os
 import shlex
 import shutil
+import signal
 import subprocess
 import sys
+import threading
+import time
 from pathlib import Path
 
 from drive import Drive, DriveError, configured
@@ -47,6 +51,10 @@ ERROR_HINTS = [
     ("HTTP Error 403", "hint_update"),
 ]
 VIDEO_EXTS = (".mp4", ".mkv", ".webm")
+# The workflow's own limit is 340 minutes; leave time for the last upload.
+MAX_STOP_MINUTES = 300
+_deadline = None  # time.monotonic() at which yt-dlp gets Ctrl+C
+_stopped = False
 
 
 def _env_bool(name):
@@ -173,15 +181,33 @@ def _drive_error(e):
 
 # ---------- main run ----------
 
+def _stop(proc):
+    """Ctrl+C to yt-dlp only: on a live stream it tells ffmpeg to close the file properly and
+    then runs the post-processing (AAC fix + upload) as if the stream had ended."""
+    global _stopped
+    if proc.poll() is None:
+        _stopped = True
+        print(t("time_up"), flush=True)
+        proc.send_signal(signal.SIGINT)
+
+
 def _run(args):
     """Runs yt-dlp with live output. Returns (exit code, full output)."""
     proc = subprocess.Popen(YTDLP + args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                             stdin=subprocess.DEVNULL, text=True, encoding="utf-8", errors="replace")
+    timer = None
+    if _deadline is not None:
+        timer = threading.Timer(max(0, _deadline - time.monotonic()), _stop, [proc])
+        timer.daemon = True
+        timer.start()
     lines = []
     for line in proc.stdout:
         print(line, end="", flush=True)
         lines.append(line)
-    return proc.wait(), "".join(lines)
+    code = proc.wait()
+    if timer:
+        timer.cancel()
+    return code, "".join(lines)
 
 
 def _run_clients(args, url, signed_in):
@@ -194,9 +220,27 @@ def _run_clients(args, url, signed_in):
             print(t("client", client=client), flush=True)
         extra = [] if client == "default" else ["--extractor-args", f"youtube:player_client={client}"]
         code, output = _run(args + extra + [url])
+        if _stopped:
+            return 0, output  # stopped on purpose; whatever was recorded is already uploaded
         if BOT_ERROR not in output:
             break
     return code, output
+
+
+def _stop_minutes():
+    """YT_STOP_MINUTES as a whole number of minutes (0 = no limit), capped at MAX_STOP_MINUTES."""
+    raw = (os.environ.get("YT_STOP_MINUTES") or "").strip()
+    if not raw:
+        return 0
+    try:
+        minutes = int(float(raw))
+    except ValueError:
+        print(t("time_limit_bad", value=raw))
+        return 0
+    if minutes > MAX_STOP_MINUTES:
+        print(t("time_limit_capped", minutes=MAX_STOP_MINUTES))
+        minutes = MAX_STOP_MINUTES
+    return max(minutes, 0)
 
 
 def _build_args():
@@ -220,6 +264,13 @@ def _build_args():
         args += ["--yes-playlist", "--playlist-items", items]
     elif not _env_bool("YT_WHOLE_PLAYLIST"):
         args += ["--no-playlist"]  # a link with both v= and list= downloads only that video
+    stop = _stop_minutes()
+    if stop:
+        global _deadline
+        _deadline = time.monotonic() + stop * 60
+        print(t("time_limit", minutes=stop))
+        # ffmpeg (instead of yt-dlp's own HLS/DASH downloader) can close a live recording cleanly.
+        args += ["--downloader", "m3u8:ffmpeg", "--downloader", "dash:ffmpeg"]
     if items or _env_bool("YT_WHOLE_PLAYLIST"):
         # A pause between videos, as yt-dlp advises with signed-in cookies, so the account isn't flagged.
         args += ["--sleep-interval", "4", "--max-sleep-interval", "10"]

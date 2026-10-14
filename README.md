@@ -8,7 +8,7 @@
   ```bash
   gh workflow run download.yml -R yo-hersh/yt-drive -f url=https://youtu.be/XXXX
   ```
-  אפשר להוסיף `-f mode=mp3`, `-f quality=720`, `-f items=3-7`, `-f whole_playlist=true`, `-f folder=Music`.
+  אפשר להוסיף `-f mode=mp3`, `-f quality=720`, `-f items=3-7`, `-f whole_playlist=true`, `-f folder=Music`, `-f stop_after_minutes=30` (לשידור חי: עוצר אחרי 30 דקות ומעלה את מה שהוקלט).
 
 הקבצים מגיעים לתיקייה `YouTube` בדרייב, או לתיקייה שנבחרה. פריטים מפלייליסט נשמרים בתת-תיקייה בשם הפלייליסט.
 

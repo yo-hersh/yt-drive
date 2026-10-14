@@ -30,6 +30,10 @@ on:
         description: "להטמיע כתוביות עברית / Embed Hebrew subtitles"
         type: boolean
         default: false
+      stop_after_minutes:
+        description: "לעצור אחרי X דקות, לשידור חי. ריק = בלי הגבלה / Stop after X minutes, for live streams. Empty = no limit"
+        type: string
+        default: ""
       folder:
         description: "תיקייה בדרייב / Drive folder"
         type: string
@@ -84,6 +88,7 @@ jobs:
           YT_ITEMS: ${{ inputs.items }}
           YT_WHOLE_PLAYLIST: ${{ inputs.whole_playlist }}
           YT_EMBED_SUBS: ${{ inputs.embed_subs }}
+          YT_STOP_MINUTES: ${{ inputs.stop_after_minutes }}
           DRIVE_FOLDER: ${{ inputs.folder }}
           DRIVE_UPLOADER: ${{ inputs.upload_via }}
           YT_LANG: ${{ inputs.lang }}

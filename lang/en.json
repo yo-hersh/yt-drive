@@ -37,5 +37,9 @@
   "hint_cookies_rotated": "💡 YouTube rejected the cookies (they were rotated in the browser). Export new ones in a private window: sign in to YouTube, go to youtube.com/robots.txt in the same tab, export, close the window right away, and save YT_COOKIES again.",
   "no_drive_rclone": "❌ Upload through rclone is not set up: the repository secret RCLONE_CONF (with a remote named gdrive) is missing.",
   "rclone_failed": "rclone failed (code {code}). If a token error appears, reconnect and save RCLONE_CONF again.",
-  "uploader": "🔌 Uploading to Drive through: {name}"
+  "uploader": "🔌 Uploading to Drive through: {name}",
+  "time_limit": "⏱️ The download will stop after {minutes} minutes, and whatever was recorded will be uploaded to Drive.",
+  "time_up": "⏱️ Time is up. Stopping the download and uploading what was recorded...",
+  "time_limit_bad": "⚠️ '{value}' is not a number of minutes. Continuing without a time limit.",
+  "time_limit_capped": "⚠️ The time limit was lowered to {minutes} minutes, the most a GitHub run allows."
 }

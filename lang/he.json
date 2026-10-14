@@ -37,5 +37,9 @@
   "hint_cookies_rotated": "💡 YouTube פסל את העוגיות (הן הוחלפו בדפדפן). לייצא חדשות בחלון גלישה בסתר: להתחבר ל-YouTube, לעבור באותה לשונית ל-youtube.com/robots.txt, לייצא, לסגור את החלון מיד, ולשמור שוב את YT_COOKIES.",
   "no_drive_rclone": "❌ ההעלאה דרך rclone לא מוגדרת: חסר ה-Secret בשם RCLONE_CONF בריפו, עם חיבור בשם gdrive.",
   "rclone_failed": "rclone נכשל (קוד {code}). אם מופיעה שגיאת token, צריך לחבר מחדש ולשמור שוב את RCLONE_CONF.",
-  "uploader": "🔌 העלאה לדרייב דרך: {name}"
+  "uploader": "🔌 העלאה לדרייב דרך: {name}",
+  "time_limit": "⏱️ ההורדה תיעצר אחרי {minutes} דקות, ומה שהוקלט עד אז יועלה לדרייב.",
+  "time_up": "⏱️ הזמן עבר. עוצר את ההורדה ומעלה את מה שהוקלט...",
+  "time_limit_bad": "⚠️ '{value}' הוא לא מספר דקות. ממשיך בלי הגבלת זמן.",
+  "time_limit_capped": "⚠️ הגבלת הזמן הוקטנה ל-{minutes} דקות, כי זה המקסימום שריצה של GitHub מאפשרת."
 }
