@@ -25,6 +25,15 @@ class DriveError(Exception):
     """args[0] is a stable error code (bad_key, http_403...), translated by the caller."""
 
 
+def _http_error(r):
+    """DriveError for a failed Drive response, with Google's own reason for the log."""
+    try:
+        reason = r.json()["error"]["message"][:300]
+    except (ValueError, KeyError, TypeError):
+        reason = r.text[:300]
+    return DriveError(f"http_{r.status_code}", reason)
+
+
 def configured():
     return bool(DRIVE_URL and DRIVE_KEY)
 
@@ -87,7 +96,7 @@ class Drive:
             q += f" and mimeType = '{mime}'"
         r = self._call("GET", FILES_API, params={"q": q, "fields": "files(id,size)", "pageSize": 10})
         if r.status_code != 200:
-            raise DriveError(f"http_{r.status_code}")
+            raise _http_error(r)
         return r.json().get("files", [])
 
     def folder(self, path):
@@ -101,7 +110,7 @@ class Drive:
             r = self._call("POST", FILES_API, params={"fields": "id"},
                            json={"name": name, "mimeType": FOLDER_MIME, "parents": [parent]})
             if r.status_code != 200:
-                raise DriveError(f"http_{r.status_code}")
+                raise _http_error(r)
             parent = r.json()["id"]
         return parent
 
@@ -116,7 +125,7 @@ class Drive:
         r = self._call("POST", UPLOAD_API, json={"name": path.name, "parents": [parent]},
                        headers={"X-Upload-Content-Length": str(size)})
         if r.status_code != 200:
-            raise DriveError(f"http_{r.status_code}")
+            raise _http_error(r)
         session_url = r.headers["Location"]
         offset = stalled = 0
         with open(path, "rb") as f:
@@ -137,7 +146,7 @@ class Drive:
                     if r.status_code in (200, 201):
                         return
                     if r.status_code != 308:
-                        raise DriveError(f"http_{r.status_code}")
+                        raise _http_error(r)
                 # "Range: bytes=0-N" says how much Drive actually has; continue from there.
                 got = r.headers.get("Range")
                 new_offset = int(got.rsplit("-", 1)[1]) + 1 if got else 0
