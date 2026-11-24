@@ -232,7 +232,7 @@ def _run_clients(args, url, signed_in):
         if _stopped:
             return 0, output  # stopped on purpose; whatever was recorded is already uploaded
         if _cookies_dead:
-            return code or 1, output
+            return 1, output  # not yt-dlp's -15 from terminate()
         if BOT_ERROR not in output:
             break
     return code, output
