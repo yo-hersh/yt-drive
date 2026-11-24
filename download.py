@@ -293,6 +293,10 @@ def _attempt():
         return 1
 
 
+def _subs_429(output):
+    return any(SUBS_FAILED in line and "429" in line for line in output.splitlines())
+
+
 def _uploaded_count():
     try:
         return len(UPLOAD_LOG.read_text(encoding="utf-8").splitlines())
@@ -410,6 +414,14 @@ def main():
     args, url, signed_in, mode, sub_codes = _build_args()
     print("-" * 60, flush=True)
     code, output = _run_clients(args, url, signed_in)
+    # Subtitles refused (429) with cookies: one more try as a guest, which worked from a home IP.
+    if (mode == "subs" and "--cookies" in args and _subs_429(output)
+            and not any(p.is_file() for p in BASE_DIR.rglob("*"))):
+        print("-" * 60, flush=True)
+        print(t("subs_retry_no_cookies"), flush=True)
+        i = args.index("--cookies")
+        code, guest_output = _run_clients(args[:i] + args[i + 2:], url, False)
+        output += guest_output
     print("-" * 60, flush=True)
 
     # Anything --exec did not upload (subtitle files, a failed upload) gets one more try.
@@ -436,7 +448,9 @@ def main():
                 messages.append(t(key))
         if any("429" in line for line in subs_lines):
             messages.append(t("hint_subs_429"))
-        blocked = any(s in rest for s in SERVER_BLOCKED) and not _cookies_dead
+        # A new server doesn't fix refused subtitles, and every run shows the cookies from one more IP.
+        blocked = (any(s in rest for s in SERVER_BLOCKED) and not _cookies_dead
+                   and not _subs_429(output))
         if nothing and mode == "subs" and not blocked and any(s in output for s in NO_SUBS):
             messages.append(t("hint_no_subs", langs=sub_codes))
         if blocked and nothing:
