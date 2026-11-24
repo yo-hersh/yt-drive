@@ -51,6 +51,11 @@ BOT_ERROR = "Sign in to confirm"
 COOKIES_ROTATED = "cookies are no longer valid"
 # YouTube turning away this runner's IP for a while; a new run gets another server and IP.
 SERVER_BLOCKED = ["HTTP Error 429", "HTTP Error 403", "content isn't available", BOT_ERROR]
+# YouTube answers 429 to auto-translated subtitles (e.g. Hebrew from Yiddish) fetched right after
+# the video page, from any IP, with or without cookies; waiting ~60 seconds first avoids it
+# (https://github.com/yt-dlp/yt-dlp/issues/13831). A new server doesn't help, so no retry for it.
+SUBS_SLEEP = "60"
+SUBS_FAILED = "Unable to download video subtitles"
 NO_SUBS = ["no subtitles for the requested languages", "has no subtitles", "has no automatic captions"]
 ERROR_HINTS = [
     (COOKIES_ROTATED, "hint_cookies_rotated"),
@@ -355,7 +360,7 @@ def _build_args():
         print(t("sub_langs", langs=sub_codes))
     if mode == "subs":
         args += ["--skip-download", "--write-subs", "--write-auto-subs", "--sub-langs", sub_langs,
-                 "--convert-subs", "srt", "--sleep-subtitles", "8", "--sleep-requests", "3",
+                 "--convert-subs", "srt", "--sleep-subtitles", SUBS_SLEEP, "--sleep-requests", "3",
                  "--retries", "20", "--retry-sleep", "15"]
     else:
         post = " ".join(shlex.quote(p) for p in (sys.executable, str(Path(__file__).resolve()), "--post"))
@@ -368,7 +373,7 @@ def _build_args():
             if _env_bool("YT_EMBED_SUBS"):
                 args += ["--write-subs", "--write-auto-subs", "--sub-langs", sub_langs,
                          "--convert-subs", "srt", "--embed-subs",
-                         "--sleep-subtitles", "3", "--retries", "20", "--retry-sleep", "15"]
+                         "--sleep-subtitles", SUBS_SLEEP, "--retries", "20", "--retry-sleep", "15"]
     return args, url, signed_in, mode, sub_codes
 
 
@@ -422,11 +427,16 @@ def main():
     messages.insert(0, t("done") if code == 0 else t("done_errors", code=code))
     if code:
         shown = set()
+        # Subtitle failures get their own hint; only the rest tells whether the server was blocked.
+        subs_lines = [line for line in output.splitlines() if SUBS_FAILED in line]
+        rest = "\n".join(line for line in output.splitlines() if SUBS_FAILED not in line)
         for fragment, key in ERROR_HINTS:
-            if fragment in output and key not in shown:
+            if fragment in rest and key not in shown:
                 shown.add(key)
                 messages.append(t(key))
-        blocked = any(s in output for s in SERVER_BLOCKED) and not _cookies_dead
+        if any("429" in line for line in subs_lines):
+            messages.append(t("hint_subs_429"))
+        blocked = any(s in rest for s in SERVER_BLOCKED) and not _cookies_dead
         if nothing and mode == "subs" and not blocked and any(s in output for s in NO_SUBS):
             messages.append(t("hint_no_subs", langs=sub_codes))
         if blocked and nothing:
