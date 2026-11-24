@@ -51,5 +51,6 @@
   "retry_exhausted": "🛑 YouTube kept blocking after {max} attempts on different servers. Wait a while and run again.",
   "attempt": "🔁 Attempt {attempt} of {max}, on a new server.",
   "hint_subs_429": "💡 YouTube refused the subtitles (error 429). This happens with auto-translated subtitles, e.g. Hebrew from Yiddish, when they are requested too soon. The run waits 60 seconds before each subtitle file, which is usually enough. If it keeps happening, run again later.",
-  "subs_retry_no_cookies": "🔁 YouTube refused the subtitles with the cookies. Trying again without cookies..."
+  "pot_on": "🔑 PO token is on for subtitle requests (bgutil).",
+  "pot_off": "⚠️ The PO token server did not start. Continuing without it; YouTube may refuse auto-translated subtitles."
 }

@@ -75,6 +75,7 @@ MAX_STOP_MINUTES = 300
 _deadline = None  # time.monotonic() at which yt-dlp gets Ctrl+C
 _stopped = False
 _cookies_dead = False  # YouTube rejected the cookies: stop instead of a slow guest download
+YT_EXTRACTOR_ARGS = []  # "key=value" for yt-dlp's youtube extractor, joined into one --extractor-args
 
 
 def _env_bool(name):
@@ -247,7 +248,9 @@ def _run_clients(args, url, signed_in):
             print(t("retry_client", prev=clients[i - 1], next=client), flush=True)
         else:
             print(t("client", client=client), flush=True)
-        extra = [] if client == "default" else ["--extractor-args", f"youtube:player_client={client}"]
+        # One --extractor-args for youtube: a second one replaces the first instead of adding to it.
+        parts = YT_EXTRACTOR_ARGS + ([] if client == "default" else [f"player_client={client}"])
+        extra = ["--extractor-args", "youtube:" + ";".join(parts)] if parts else []
         code, output = _run(args + extra + [url])
         if _stopped:
             return 0, output  # stopped on purpose; whatever was recorded is already uploaded
@@ -362,6 +365,12 @@ def _build_args():
     sub_langs, sub_codes = _sub_langs()
     if mode == "subs" or (mode == "video" and _env_bool("YT_EMBED_SUBS")):
         print(t("sub_langs", langs=sub_codes))
+        # The workflow started a PO token server (bgutil); ask for a token on every subtitle request.
+        if os.environ.get("YT_POT") == "1":
+            print(t("pot_on"))
+            YT_EXTRACTOR_ARGS.append("fetch_pot=always")
+        else:
+            print(t("pot_off"))
     if mode == "subs":
         args += ["--skip-download", "--write-subs", "--write-auto-subs", "--sub-langs", sub_langs,
                  "--convert-subs", "srt", "--sleep-subtitles", SUBS_SLEEP, "--sleep-requests", "3",
@@ -414,14 +423,6 @@ def main():
     args, url, signed_in, mode, sub_codes = _build_args()
     print("-" * 60, flush=True)
     code, output = _run_clients(args, url, signed_in)
-    # Subtitles refused (429) with cookies: one more try as a guest, which worked from a home IP.
-    if (mode == "subs" and "--cookies" in args and _subs_429(output)
-            and not any(p.is_file() for p in BASE_DIR.rglob("*"))):
-        print("-" * 60, flush=True)
-        print(t("subs_retry_no_cookies"), flush=True)
-        i = args.index("--cookies")
-        code, guest_output = _run_clients(args[:i] + args[i + 2:], url, False)
-        output += guest_output
     print("-" * 60, flush=True)
 
     # Anything --exec did not upload (subtitle files, a failed upload) gets one more try.
