@@ -44,8 +44,9 @@ PLAYER_CLIENTS = ["default", "android", "tv_simply", "web_safari", "mweb"]
 # With signed-in cookies yt-dlp ignores clients that don't support cookies (android, tv_simply...).
 PLAYER_CLIENTS_SIGNED_IN = ["default", "web_safari", "mweb", "tv"]
 BOT_ERROR = "Sign in to confirm"
+COOKIES_ROTATED = "cookies are no longer valid"
 ERROR_HINTS = [
-    ("cookies are no longer valid", "hint_cookies_rotated"),
+    (COOKIES_ROTATED, "hint_cookies_rotated"),
     (BOT_ERROR, "hint_bot"),
     ("Requested format is not available", "hint_update"),
     ("HTTP Error 403", "hint_update"),
@@ -55,6 +56,7 @@ VIDEO_EXTS = (".mp4", ".mkv", ".webm")
 MAX_STOP_MINUTES = 300
 _deadline = None  # time.monotonic() at which yt-dlp gets Ctrl+C
 _stopped = False
+_cookies_dead = False  # YouTube rejected the cookies: stop instead of a slow guest download
 
 
 def _env_bool(name):
@@ -200,10 +202,17 @@ def _run(args):
         timer = threading.Timer(max(0, _deadline - time.monotonic()), _stop, [proc])
         timer.daemon = True
         timer.start()
+    global _cookies_dead
     lines = []
     for line in proc.stdout:
         print(line, end="", flush=True)
         lines.append(line)
+        # Without a signed-in account YouTube blocks the video piece by piece (403); better to
+        # stop now and say the cookies need refreshing.
+        if COOKIES_ROTATED in line and not _cookies_dead:
+            _cookies_dead = True
+            print(t("cookies_rotated_stop"), flush=True)
+            proc.terminate()
     code = proc.wait()
     if timer:
         timer.cancel()
@@ -222,6 +231,8 @@ def _run_clients(args, url, signed_in):
         code, output = _run(args + extra + [url])
         if _stopped:
             return 0, output  # stopped on purpose; whatever was recorded is already uploaded
+        if _cookies_dead:
+            return code or 1, output
         if BOT_ERROR not in output:
             break
     return code, output
@@ -257,8 +268,11 @@ def _build_args():
         print(t("start_video", quality=quality, url=url))
     print(t("target", target=FOLDER))
 
+    # A blocked fragment (HTTP 403) won't come back: fail fast instead of retrying it 10 times
+    # for each of hundreds of fragments.
     args = ["--ignore-errors", "--windows-filenames", "--newline", "--progress-delta", "5",
-            "-P", str(BASE_DIR), "-o", OUT_TEMPLATE, "--embed-metadata"]
+            "-P", str(BASE_DIR), "-o", OUT_TEMPLATE, "--embed-metadata",
+            "--fragment-retries", "3", "--abort-on-unavailable-fragments"]
     if items:
         print(t("items", items=items))
         args += ["--yes-playlist", "--playlist-items", items]

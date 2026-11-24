@@ -41,5 +41,6 @@
   "time_limit": "⏱️ The download will stop after {minutes} minutes, and whatever was recorded will be uploaded to Drive.",
   "time_up": "⏱️ Time is up. Stopping the download and uploading what was recorded...",
   "time_limit_bad": "⚠️ '{value}' is not a number of minutes. Continuing without a time limit.",
-  "time_limit_capped": "⚠️ The time limit was lowered to {minutes} minutes, the most a GitHub run allows."
+  "time_limit_capped": "⚠️ The time limit was lowered to {minutes} minutes, the most a GitHub run allows.",
+  "cookies_rotated_stop": "🛑 YouTube rejected the cookies, so the download stops. Without a signed-in account YouTube blocks the download."
 }

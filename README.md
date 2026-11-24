@@ -35,7 +35,7 @@
 ```powershell
 rclone config delete gdrive
 rclone config create gdrive drive client_id=<CLIENT_ID> client_secret=<CLIENT_SECRET> scope=drive.file
-Get-Content "$env:APPDATAcloneclone.conf" -Raw | gh secret set RCLONE_CONF -R yo-hersh/yt-drive
+Get-Content "$env:APPDATA\rclone\rclone.conf" -Raw | gh secret set RCLONE_CONF -R yo-hersh/yt-drive
 ```
 
 ## שפה
