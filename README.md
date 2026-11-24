@@ -9,8 +9,11 @@
   gh workflow run download.yml -R yo-hersh/yt-drive -f url=https://youtu.be/XXXX
   ```
   אפשר להוסיף `-f mode=mp3`, `-f quality=720`, `-f items=3-7`, `-f whole_playlist=true`, `-f folder=Music`, `-f stop_after_minutes=30` (לשידור חי: עוצר אחרי 30 דקות ומעלה את מה שהוקלט).
+- **רק כתוביות:** `-f mode=subs`. השפה נקבעת ב-`-f sub_langs=en`. ברירת המחדל היא `he`. אפשר כמה שפות (`he,en`) או `all`. אותו שדה קובע גם את שפת הכתוביות שמוטמעות בסרטון (`-f embed_subs=true`).
 
 הקבצים מגיעים לתיקייה `YouTube` בדרייב, או לתיקייה שנבחרה. פריטים מפלייליסט נשמרים בתת-תיקייה בשם הפלייליסט.
+
+כש-YouTube חוסם זמנית את השרת של GitHub (שגיאה 403 או 429) ולא ירד כלום, ה-workflow מפעיל בעצמו הרצה חדשה על שרת אחר, עד 3 ניסיונות בסך הכול. כל ניסיון מופיע כהרצה נפרדת ברשימה, עם `#2` או `#3` בשם.
 
 ## Secrets (Settings ← Secrets and variables ← Actions)
 | שם | תוכן |

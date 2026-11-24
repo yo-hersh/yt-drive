@@ -5,6 +5,7 @@ Run by .github/workflows/download.yml; settings come from environment variables:
   YT_URL, YT_MODE (video / mp3 / subs), YT_QUALITY (1080 / 720 / 480 / 360 / max / small),
   YT_ITEMS (e.g. "3-7"), YT_WHOLE_PLAYLIST, YT_EMBED_SUBS ("true" / "false"),
   YT_STOP_MINUTES (stop after N minutes and upload what was recorded; for live streams),
+  YT_SUB_LANGS (subtitle languages: "he", "en", "he,en", "all"), YT_ATTEMPT (1, 2, 3...),
   DRIVE_FOLDER, YT_COOKIES_FILE, YT_LANG.
 Upload: DRIVE_UPLOADER = "apps_script" (DRIVE_URL + DRIVE_KEY, see drive.py)
         or "rclone" (an rclone remote named "gdrive", made with your own Google client_id).
@@ -13,6 +14,7 @@ Upload: DRIVE_UPLOADER = "apps_script" (DRIVE_URL + DRIVE_KEY, see drive.py)
 to AAC, then upload and delete the local copy, so the runner's disk never fills up.
 """
 import os
+import re
 import shlex
 import shutil
 import signal
@@ -35,7 +37,9 @@ YTDLP = [sys.executable, "-m", "yt_dlp"]
 # AAC audio (YouTube format 140) so Windows "Movies & TV" plays the sound; H.264 video when available.
 VIDEO_FORMAT = "bv*+ba[acodec^=mp4a]/bv*+ba/b"
 QUALITY_SORT = {"max": "res,fps,vcodec:h264", "small": "+res,+size"}
-SUB_LANGS = "iw,iw-en,he"
+# YouTube calls Hebrew "iw"; "iw-en" is YouTube's own translation from English.
+SUB_LANG_ALIASES = {"he": ["iw", "iw-en", "he"], "iw": ["iw", "iw-en", "he"], "all": ["all", "-live_chat"]}
+DEFAULT_SUB_LANGS = "he"
 # Playlist items go into a sub-folder named after the playlist, numbered "N - title"; single videos
 # get "." instead. The "/" must stay outside the field, or --windows-filenames turns it into "⧸".
 OUT_TEMPLATE = "%(playlist_title|.)s/%(playlist_index&{} - |)s%(title)s.%(ext)s"
@@ -45,12 +49,21 @@ PLAYER_CLIENTS = ["default", "android", "tv_simply", "web_safari", "mweb"]
 PLAYER_CLIENTS_SIGNED_IN = ["default", "web_safari", "mweb", "tv"]
 BOT_ERROR = "Sign in to confirm"
 COOKIES_ROTATED = "cookies are no longer valid"
+# YouTube turning away this runner's IP for a while; a new run gets another server and IP.
+SERVER_BLOCKED = ["HTTP Error 429", "HTTP Error 403", "content isn't available", BOT_ERROR]
+NO_SUBS = ["no subtitles for the requested languages", "has no subtitles", "has no automatic captions"]
 ERROR_HINTS = [
     (COOKIES_ROTATED, "hint_cookies_rotated"),
     (BOT_ERROR, "hint_bot"),
     ("Requested format is not available", "hint_update"),
-    ("HTTP Error 403", "hint_update"),
+    ("HTTP Error 429", "hint_blocked"),
+    ("HTTP Error 403", "hint_blocked"),
+    ("content isn't available", "hint_blocked"),
 ]
+# Automatic runs on a new server when YouTube blocks one (the first run counts as 1).
+MAX_ATTEMPTS = 3
+# post_process runs in a separate process (yt-dlp --exec), so successful uploads are counted in a file.
+UPLOAD_LOG = BASE_DIR.parent / "yt-drive-uploaded.txt"
 VIDEO_EXTS = (".mp4", ".mkv", ".webm")
 # The workflow's own limit is 340 minutes; leave time for the last upload.
 MAX_STOP_MINUTES = 300
@@ -147,6 +160,8 @@ def post_process(path):
     path.unlink(missing_ok=True)
     print(t("uploaded", path=f"{FOLDER}/{rel.as_posix()}"), flush=True)
     _summary(f"- {rel.as_posix()}")
+    with open(UPLOAD_LOG, "a", encoding="utf-8") as f:
+        f.write(rel.as_posix() + "\n")
     return True
 
 
@@ -254,6 +269,39 @@ def _stop_minutes():
     return max(minutes, 0)
 
 
+def _sub_langs():
+    """(yt-dlp --sub-langs value, the languages as typed) from YT_SUB_LANGS, e.g. "he,en"."""
+    raw = (os.environ.get("YT_SUB_LANGS") or "").replace(" ", "").lower()
+    codes = [c for c in raw.split(",") if re.fullmatch(r"[a-z0-9-]+", c)] or [DEFAULT_SUB_LANGS]
+    langs = []
+    for code in codes:
+        for lang in SUB_LANG_ALIASES.get(code, [code]):
+            if lang not in langs:
+                langs.append(lang)
+    return ",".join(langs), ",".join(codes)
+
+
+def _attempt():
+    try:
+        return max(int(os.environ.get("YT_ATTEMPT") or 1), 1)
+    except ValueError:
+        return 1
+
+
+def _uploaded_count():
+    try:
+        return len(UPLOAD_LOG.read_text(encoding="utf-8").splitlines())
+    except OSError:
+        return 0
+
+
+def _set_output(name, value):
+    path = os.environ.get("GITHUB_OUTPUT")
+    if path:
+        with open(path, "a", encoding="utf-8") as f:
+            f.write(f"{name}={value}\n")
+
+
 def _build_args():
     mode = os.environ.get("YT_MODE") or "video"
     quality = os.environ.get("YT_QUALITY") or "1080"
@@ -302,8 +350,11 @@ def _build_args():
             print(t("cookies_logged_in") if signed_in else t("cookies_not_logged_in"))
         args += ["--cookies", str(cookies)]
 
+    sub_langs, sub_codes = _sub_langs()
+    if mode == "subs" or (mode == "video" and _env_bool("YT_EMBED_SUBS")):
+        print(t("sub_langs", langs=sub_codes))
     if mode == "subs":
-        args += ["--skip-download", "--write-subs", "--write-auto-subs", "--sub-langs", SUB_LANGS,
+        args += ["--skip-download", "--write-subs", "--write-auto-subs", "--sub-langs", sub_langs,
                  "--convert-subs", "srt", "--sleep-subtitles", "8", "--sleep-requests", "3",
                  "--retries", "20", "--retry-sleep", "15"]
     else:
@@ -315,10 +366,10 @@ def _build_args():
             sort = QUALITY_SORT.get(quality, f"res:{quality},fps,vcodec:h264")
             args += ["-f", VIDEO_FORMAT, "-S", sort, "--merge-output-format", "mp4"]
             if _env_bool("YT_EMBED_SUBS"):
-                args += ["--write-subs", "--write-auto-subs", "--sub-langs", SUB_LANGS,
+                args += ["--write-subs", "--write-auto-subs", "--sub-langs", sub_langs,
                          "--convert-subs", "srt", "--embed-subs",
                          "--sleep-subtitles", "3", "--retries", "20", "--retry-sleep", "15"]
-    return args, url, signed_in
+    return args, url, signed_in, mode, sub_codes
 
 
 def main():
@@ -345,9 +396,13 @@ def main():
     version = subprocess.run(YTDLP + ["--version"], capture_output=True, text=True).stdout.strip()
     print(t("ytdlp_version", version=version))
     BASE_DIR.mkdir(parents=True, exist_ok=True)
+    UPLOAD_LOG.unlink(missing_ok=True)
+    attempt = _attempt()
+    if attempt > 1:
+        print(t("attempt", attempt=attempt, max=MAX_ATTEMPTS))
     _summary(f'<div dir="{t("dir")}">\n\n{t("summary_title")}\n\n{t("summary_files", folder=FOLDER)}\n')
 
-    args, url, signed_in = _build_args()
+    args, url, signed_in, mode, sub_codes = _build_args()
     print("-" * 60, flush=True)
     code, output = _run_clients(args, url, signed_in)
     print("-" * 60, flush=True)
@@ -357,12 +412,30 @@ def main():
         if not post_process(path):
             code = code or 1
 
-    messages = [t("done") if code == 0 else t("done_errors", code=code)]
-    shown = set()
-    for fragment, key in ERROR_HINTS:
-        if fragment in output and key not in shown:
-            shown.add(key)
-            messages.append(t(key))
+    messages = []
+    # yt-dlp may end with code 0 and nothing downloaded (a subtitle download refused with 429 is
+    # only a warning); that is not a success.
+    nothing = _uploaded_count() == 0 and not _stopped
+    if nothing:
+        code = code or 1
+        messages.append(t("nothing_uploaded"))
+    messages.insert(0, t("done") if code == 0 else t("done_errors", code=code))
+    if code:
+        shown = set()
+        for fragment, key in ERROR_HINTS:
+            if fragment in output and key not in shown:
+                shown.add(key)
+                messages.append(t(key))
+        blocked = any(s in output for s in SERVER_BLOCKED) and not _cookies_dead
+        if nothing and mode == "subs" and not blocked and any(s in output for s in NO_SUBS):
+            messages.append(t("hint_no_subs", langs=sub_codes))
+        if blocked and nothing:
+            if attempt < MAX_ATTEMPTS:
+                _set_output("retry", "true")
+                _set_output("next_attempt", attempt + 1)
+                messages.append(t("retry_new_server", next=attempt + 1, max=MAX_ATTEMPTS))
+            else:
+                messages.append(t("retry_exhausted", max=MAX_ATTEMPTS))
     for m in messages:
         print(m)
     _summary("\n" + "\n\n".join(messages) + "\n\n</div>")

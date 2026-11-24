@@ -42,5 +42,12 @@
   "time_up": "⏱️ Time is up. Stopping the download and uploading what was recorded...",
   "time_limit_bad": "⚠️ '{value}' is not a number of minutes. Continuing without a time limit.",
   "time_limit_capped": "⚠️ The time limit was lowered to {minutes} minutes, the most a GitHub run allows.",
-  "cookies_rotated_stop": "🛑 YouTube rejected the cookies, so the download stops. Without a signed-in account YouTube blocks the download."
+  "cookies_rotated_stop": "🛑 YouTube rejected the cookies, so the download stops. Without a signed-in account YouTube blocks the download.",
+  "sub_langs": "🔤 Subtitle languages: {langs}",
+  "nothing_uploaded": "❌ No file was downloaded, so nothing was uploaded to Drive.",
+  "hint_blocked": "💡 YouTube temporarily blocked the GitHub server this run got (error 403 or 429). The video itself is probably fine. Every run gets a different server, so running again usually works.",
+  "hint_no_subs": "💡 The video has no subtitles in the chosen language ({langs}). Try another language, or all for every language.",
+  "retry_new_server": "🔁 Starting another attempt on a new server ({next} of {max}). It shows up as a new run in the Actions list.",
+  "retry_exhausted": "🛑 YouTube kept blocking after {max} attempts on different servers. Wait a while and run again.",
+  "attempt": "🔁 Attempt {attempt} of {max}, on a new server."
 }
